@@ -1,6 +1,7 @@
 import streamlit as st
 from streamlit.logger import get_logger
 import os
+from langchain_pinecone import PineconeVectorStore
 from langchain_community.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
