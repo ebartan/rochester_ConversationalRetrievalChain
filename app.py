@@ -1,20 +1,45 @@
 import streamlit as st
+from streamlit.logger import get_logger
 import os
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
-from langchain.embeddings.openai import OpenAIEmbeddings
-import pinecone
+from langchain_community.embeddings import OpenAIEmbeddings
+from pinecone import Pinecone, ServerlessSpec
+from dotenv import load_dotenv
+import time
 
 # Streamlit sayfası ayarları
 st.set_page_config(page_title="AI Chatbot", page_icon="🤖")
 st.title("AI Chatbot with Document Knowledge")
 
 # Gerekli API anahtarlarını ayarla
-OPENAI_API_KEY = st.sidebar.text_input("OpenAI API Key", type="password")
-PINECONE_API_KEY = st.sidebar.text_input("Pinecone API Key", type="password")
-PINECONE_ENV = st.sidebar.text_input("Pinecone Environment")
-INDEX_NAME = st.sidebar.text_input("Pinecone Index Name")
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+PINECONE_API_KEY = st.secrets["PINECONE_API_KEY"]
+
+def get_vector_store():
+
+    LOGGER = get_logger(__name__)
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    pinecone_api_key = os.getenv("PINECONE_API_KEY")
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
+    pc = Pinecone(api_key=pinecone_api_key)
+    index_name = "groove"
+    existing_indexes = [index_info["name"] for index_info in pc.list_indexes()]
+    if index_name not in existing_indexes:
+        pc.create_index(
+        name=index_name,
+        dimension=3072,
+        metric="cosine",
+        spec=ServerlessSpec(cloud="aws", region="us-east-1")
+            )
+        while not pc.describe_index(index_name).status["ready"]:
+            time.sleep(1)
+
+    
+    index = pc.Index(index_name)
+    vectorstore = PineconeVectorStore.from_existing_index(index_name=index_name, embedding=embeddings, namespace="rochester")
+    return vectorstore
 
 # Session state'i başlat
 if 'messages' not in st.session_state:
@@ -25,20 +50,20 @@ if 'chain' not in st.session_state:
 
 def initialize_chain():
     # Pinecone'u başlat
-    pinecone.init(
-        api_key=PINECONE_API_KEY,
-        environment=PINECONE_ENV
-    )
+    load_dotenv()
+    
+    vectorstore = get_vector_store()
     
     # Mevcut index'e bağlan
-    index = pinecone.Index(INDEX_NAME)
+    #index = pinecone.Index(INDEX_NAME)
     
     # Embeddings ve ChatModel oluştur
-    embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
+    #embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
     llm = ChatOpenAI(
         openai_api_key=OPENAI_API_KEY,
         model_name="gpt-3.5-turbo",
-        temperature=0.7
+        temperature=0.2
     )
     
     # Memory oluştur
@@ -50,7 +75,7 @@ def initialize_chain():
     # ConversationalRetrievalChain oluştur
     chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
-        retriever=index.as_retriever(embedding_function=embeddings.embed_query),
+        retriever=vectorstore.as_retriever(embedding_function=embeddings.embed_query),
         memory=memory,
         verbose=True
     )
@@ -58,7 +83,7 @@ def initialize_chain():
     return chain
 
 # API anahtarları girildiğinde chain'i başlat
-if OPENAI_API_KEY and PINECONE_API_KEY and PINECONE_ENV and INDEX_NAME:
+if OPENAI_API_KEY and PINECONE_API_KEY:
     if st.session_state.chain is None:
         with st.spinner("Initializing the chatbot..."):
             st.session_state.chain = initialize_chain()
