@@ -6,13 +6,14 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from pinecone import Pinecone, ServerlessSpec
 from dotenv import load_dotenv
 import time
 
 # Streamlit sayfası ayarları
 st.set_page_config(page_title="AI Chatbot", page_icon="🤖")
-st.title("AI Chatbot with Document Knowledge")
+st.title("AI Chatbot with Document Knowledge Rochester NY 🇺🇸")
 
 # Gerekli API anahtarlarını ayarla
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
