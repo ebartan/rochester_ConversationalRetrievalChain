@@ -83,39 +83,44 @@ def initialize_chain():
     )
     
     return chain
+def main():
+    # API anahtarları girildiğinde chain'i başlat
+    if OPENAI_API_KEY and PINECONE_API_KEY:
+        if st.session_state.chain is None:
+            with st.spinner("Initializing the chatbot..."):
+                st.session_state.chain = initialize_chain()
+                st.success("Chatbot is ready!")
 
-# API anahtarları girildiğinde chain'i başlat
-if OPENAI_API_KEY and PINECONE_API_KEY:
-    if st.session_state.chain is None:
-        with st.spinner("Initializing the chatbot..."):
-            st.session_state.chain = initialize_chain()
-        st.success("Chatbot is ready!")
+    # Chat geçmişini göster
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-# Chat geçmişini göster
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+    # Kullanıcı girişi
+    if prompt := st.chat_input("Ask your question..."):
+        if not st.session_state.chain:
+            st.error("Please enter your API keys in the sidebar first!")
+        else:
+            # Kullanıcı mesajını göster
+            st.chat_message("user").markdown(prompt)
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            
+            # Bot yanıtını al ve göster
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    response = st.session_state.chain({"question": prompt})
+                    bot_response = response['answer']
+                    st.markdown(bot_response)
+                    st.session_state.messages.append({"role": "assistant", "content": bot_response})
 
-# Kullanıcı girişi
-if prompt := st.chat_input("Ask your question..."):
-    if not st.session_state.chain:
-        st.error("Please enter your API keys in the sidebar first!")
-    else:
-        # Kullanıcı mesajını göster
-        st.chat_message("user").markdown(prompt)
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        
-        # Bot yanıtını al ve göster
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                response = st.session_state.chain({"question": prompt})
-                bot_response = response['answer']
-                st.markdown(bot_response)
-                st.session_state.messages.append({"role": "assistant", "content": bot_response})
+    # Sidebar'a temizle butonu ekle
+    if st.sidebar.button("Clear Chat History"):
+        st.session_state.messages = []
+        if st.session_state.chain and hasattr(st.session_state.chain, 'memory'):
+            st.session_state.chain.memory.clear()
+        st.success("Chat history cleared!")
 
-# Sidebar'a temizle butonu ekle
-if st.sidebar.button("Clear Chat History"):
-    st.session_state.messages = []
-    if st.session_state.chain and hasattr(st.session_state.chain, 'memory'):
-        st.session_state.chain.memory.clear()
-    st.success("Chat history cleared!")
+
+
+if __name__ == "__main__":
+    main()
